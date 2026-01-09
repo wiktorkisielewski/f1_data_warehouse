@@ -6,48 +6,41 @@ import time
 
 load_dotenv()
 
+START_SEASON = int(os.getenv("START_SEASON", 1950))
+END_SEASON = int(os.getenv("END_SEASON", 2025))
 
-def fetch_all_results():
-    base_url = "https://api.jolpi.ca/ergast/f1/results.json"
+
+def fetch_results_for_season(season):
+    """
+    Fetch ALL race results for a given season using pagination.
+    Ergast defaults to limit=30, so we must paginate to get full seasons.
+    """
+    base_url = f"https://api.jolpi.ca/ergast/f1/{season}/results.json"
 
     headers = {
         "User-Agent": "F1DataEngineering/1.0",
         "Accept": "application/json"
     }
 
-    limit = 30
+    limit = 100
     offset = 0
-    all_results = []
-
-    max_retries = 5
-    retry_count = 0
-    sleep_time = 2  # seconds
+    all_races = []
 
     while True:
-        params = {"limit": limit, "offset": offset}
-        r = requests.get(base_url, params=params, headers=headers)
+        params = {
+            "limit": limit,
+            "offset": offset
+        }
+
+        r = requests.get(base_url, headers=headers, params=params)
 
         if r.status_code == 429:
-            retry_count += 1
-
-            if retry_count > max_retries:
-                raise Exception(
-                    f"Rate limited after {max_retries} retries. Aborting ingestion."
-                )
-
-            print(
-            f"Rate limited ({retry_count}/{max_retries}). "
-            f"Sleeping for {sleep_time} seconds..."
-            )
-            
-            time.sleep(sleep_time)
-            #exponential backoff capped at 60 sec
-            sleep_time = min(sleep_time * 2, 60) 
-            continue
+            raise Exception(f"Rate limited on season {season}")
 
         if r.status_code != 200:
             raise Exception(
-                f"API request failed with status {r.status_code}\n{r.text}"
+                f"API request failed for season {season} "
+                f"with status {r.status_code}"
             )
 
         data = r.json()
@@ -56,33 +49,42 @@ def fetch_all_results():
         if not races:
             break
 
-        for race in races:
-            season = race["season"]
-            round_ = race["round"]
-            race_id = f"{season}_{round_}"
-
-            for res in race["Results"]:
-                all_results.append({
-                    "race_id": race_id,
-                    "season": int(season),
-                    "round": int(round_),
-                    "driver_id": res["Driver"]["driverId"],
-                    "constructor_id": res["Constructor"]["constructorId"],
-                    "position": int(res["position"]),
-                    "points": float(res["points"]),
-                    "status": res.get("status")
-                })
-                
-        print(
-            f"Accepted page: offset={offset}, "
-            f"sleep_time={sleep_time}s, "
-            f"total_results={len(all_results)}"
-        )
+        all_races.extend(races)
         offset += limit
-        retry_count = 0
-        time.sleep(1.0)
 
-    return all_results
+        time.sleep(0.5)  # pagination pause
+
+    return all_races
+
+
+def ingest_season(cur, season):
+    races = fetch_results_for_season(season)
+
+    inserted = 0
+
+    for race in races:
+        round_ = race["round"]
+        race_id = f"{season}_{round_}"
+
+        for res in race["Results"]:
+            cur.execute("""
+                INSERT INTO results_raw
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (race_id, driver_id) DO NOTHING;
+            """, (
+                race_id,
+                int(season),
+                int(round_),
+                res["Driver"]["driverId"],
+                res["Constructor"]["constructorId"],
+                int(res["position"]),
+                float(res["points"]),
+                res.get("status")
+            ))
+
+            inserted += 1
+
+    return inserted
 
 
 def connect_db():
@@ -111,37 +113,39 @@ def create_table(cur):
     """)
 
 
-def insert_results(cur, results):
-    for r in results:
-        cur.execute("""
-            INSERT INTO results_raw
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT (race_id, driver_id) DO NOTHING;
-        """, (
-            r["race_id"],
-            r["season"],
-            r["round"],
-            r["driver_id"],
-            r["constructor_id"],
-            r["position"],
-            r["points"],
-            r["status"]
-        ))
-
-
 def main():
-    results = fetch_all_results()
     conn = connect_db()
     cur = conn.cursor()
 
     create_table(cur)
-    insert_results(cur, results)
 
-    conn.commit()
+    total_inserted = 0
+
+    for season in range(START_SEASON, END_SEASON + 1):
+        print(f"Ingesting season {season}...")
+
+        try:
+            inserted = ingest_season(cur, season)
+            conn.commit()
+            total_inserted += inserted
+
+            print(
+                f"Season {season} done "
+                f"({inserted} results, total {total_inserted})"
+            )
+
+            time.sleep(2)  # cooldown between seasons
+
+        except Exception as e:
+            print(f"Season {season} failed: {e}")
+            print("Cooling down for 5 minutes and stopping.")
+            time.sleep(300)
+            break
+
     cur.close()
     conn.close()
 
-    print(f"Loaded {len(results)} race results")
+    print(f"Finished. Total results processed: {total_inserted}")
 
 
 if __name__ == "__main__":
