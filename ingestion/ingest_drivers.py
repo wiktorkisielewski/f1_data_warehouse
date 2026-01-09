@@ -2,23 +2,42 @@ import requests
 import psycopg2
 
 
-def fetch_drivers():
-    URL = "https://api.jolpi.ca/ergast/f1/drivers.json?limit=100"
+def fetch_all_drivers():
+    base_url = "https://api.jolpi.ca/ergast/f1/drivers.json"
 
     headers = {
         "User-Agent": "F1DataEngineering/1.0",
         "Accept": "application/json"
     }
 
-    r = requests.get(URL, headers=headers)
+    limit = 100
+    offset = 0
+    all_drivers = []
 
-    if r.status_code != 200:
-        raise Exception(
-            f"API request failed with status {r.status_code}\nResponse: {r.text}"
-        )
+    while True:
+        params = {
+            "limit": limit,
+            "offset": offset
+        }
 
-    data = r.json()
-    return data["MRData"]["DriverTable"]["Drivers"]
+        r = requests.get(base_url, params=params, headers=headers)
+
+        if r.status_code != 200:
+            raise Exception(
+                f"API request failed with status {r.status_code}\n{r.text}"
+            )
+
+        data = r.json()
+        drivers = data["MRData"]["DriverTable"]["Drivers"]
+
+        # STOP condition
+        if not drivers:
+            break
+
+        all_drivers.extend(drivers)
+        offset += limit
+
+    return all_drivers
 
 def connect_db():
     return psycopg2.connect(
@@ -57,7 +76,7 @@ def insert_drivers(cur, drivers):
         ))
 
 def main():
-    drivers = fetch_drivers()
+    drivers = fetch_all_drivers()
     conn = connect_db()
     cur = conn.cursor()
 
