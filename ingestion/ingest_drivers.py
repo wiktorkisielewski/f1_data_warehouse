@@ -1,6 +1,9 @@
+import os
 import requests
 import psycopg2
+from dotenv import load_dotenv
 
+load_dotenv("docker/.env")
 
 def fetch_all_drivers():
     base_url = "https://api.jolpi.ca/ergast/f1/drivers.json"
@@ -41,11 +44,11 @@ def fetch_all_drivers():
 
 def connect_db():
     return psycopg2.connect(
-        host="localhost",
-        port=5433,
-        database="f1_raw",
-        user="f1_user",
-        password="f1_password"
+        host=os.getenv("POSTGRES_HOST"),
+        port=os.getenv("POSTGRES_PORT"),
+        database=os.getenv("POSTGRES_DB"),
+        user=os.getenv("POSTGRES_USER"),
+        password=os.getenv("POSTGRES_PASSWORD")
     )
 
 def create_table(cur):
