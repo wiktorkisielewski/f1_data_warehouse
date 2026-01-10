@@ -1,12 +1,12 @@
-WITH source AS (
-    SELECT
+with source as (
+    select
         driver_id,
-        code AS driver_code,
-        given_name AS first_name,
-        family_name AS last_name,
+        code as driver_code,
+        given_name as first_name,
+        family_name as last_name,
         nationality,
-        dob AS date_of_birth
-    FROM public.drivers_raw
+        dob as date_of_birth
+    from public.drivers_raw
 )
 
-SELECT * FROM source
+select * from source

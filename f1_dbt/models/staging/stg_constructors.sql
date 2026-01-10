@@ -1,12 +1,12 @@
-WITH source AS (
+with source as (
 
-    SELECT
+    select
         constructor_id,
-        name AS constructor_name,
+        name as constructor_name,
         nationality,
-        url AS constructor_url
-    FROM public.constructors_raw
+        url as constructor_url
+    from public.constructors_raw
 
 )
 
-SELECT * FROM source
+select * from source
