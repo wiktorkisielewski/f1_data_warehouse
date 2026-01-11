@@ -85,17 +85,16 @@ The pipeline is designed to be **idempotent, resumable, and analytics-ready**, c
 
 ## Warehouse Schema
 
-![Warehouse Schema](docs/schema.png)
+![Warehouse Schema](docs/lineage.png)
 
 ---
 
 ## Example Analytics
-- Top drivers by total career points
+Example SQL analytics queries are available in `f1_dbt/analyses/`, including:
+- Top drivers by career points
 - Constructor dominance by season
-- Wins per driver
-- Historical race calendar analysis
-
-(Example queries included in `analyses/`.)
+- Driver win counts
+- Race distribution by country
 
 ---
 
