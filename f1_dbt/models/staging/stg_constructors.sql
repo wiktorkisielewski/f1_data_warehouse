@@ -5,7 +5,7 @@ with source as (
         name as constructor_name,
         nationality,
         url as constructor_url
-    from public.constructors_raw
+    from {{ source('f1_raw', 'constructors_raw') }}
 
 )
 

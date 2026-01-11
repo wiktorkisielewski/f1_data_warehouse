@@ -6,7 +6,7 @@ with source as (
         family_name as last_name,
         nationality,
         dob as date_of_birth
-    from public.drivers_raw
+    from {{ source('f1_raw', 'drivers_raw') }}
 )
 
 select * from source

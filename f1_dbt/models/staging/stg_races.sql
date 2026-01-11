@@ -11,7 +11,7 @@ with source as (
         circuit_name,
         locality,
         country
-    from public.races_raw
+    from {{ source('f1_raw', 'races_raw') }}
 
 )
 

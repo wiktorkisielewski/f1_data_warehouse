@@ -9,7 +9,7 @@ with source as (
         position as finish_position,
         points,
         status
-    from public.results_raw
+    from {{ source('f1_raw', 'results_raw') }}
 
 )
 

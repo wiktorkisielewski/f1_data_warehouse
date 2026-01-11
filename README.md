@@ -83,6 +83,12 @@ The pipeline is designed to be **idempotent, resumable, and analytics-ready**, c
 
 ---
 
+## Warehouse Schema
+
+![Warehouse Schema](docs/schema.png)
+
+---
+
 ## Example Analytics
 - Top drivers by total career points
 - Constructor dominance by season
