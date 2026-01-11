@@ -1,32 +1,104 @@
-# F1 Data Warehouse 🏎️
+# 🏎️ Formula 1 Data Warehouse
 
-End-to-end data engineering project that ingests, models, and transforms Formula 1 data into an analytics-ready warehouse.
+An end-to-end data engineering project that ingests, models, and transforms historical Formula 1 data into an analytics-ready warehouse.
+
+The project demonstrates modern data engineering and analytics engineering best practices, including robust ingestion, layered transformations, data quality testing, and star-schema modeling.
+
+---
+
+## Overview
+This warehouse enables analysis of Formula 1 history such as:
+- Driver career performance
+- Constructor dominance by season
+- Race and calendar analytics
+
+The pipeline is designed to be **idempotent, resumable, and analytics-ready**, closely mirroring real-world production patterns.
+
+---
 
 ## Tech Stack
-- Python (data ingestion)
-- PostgreSQL (Dockerized)
-- dbt (transformations & modeling)
-- Public Ergast API (via api.jolpi.ca)
+- **Python** – API ingestion & orchestration
+- **PostgreSQL** – relational warehouse (Dockerized)
+- **Docker & Docker Compose** – local infrastructure
+- **dbt** – transformations, testing, and modeling
+- **SQL** – analytics & data modeling
+- **Public Ergast API** (via `api.jolpi.ca` mirror)
+
+---
 
 ## Architecture
-- Raw ingestion layer built in Python
-- Relational storage in PostgreSQL
-- Incremental, idempotent batch ingestion
-- Transformation layer implemented with dbt
 
-## Ingestion Strategy
-- Drivers, constructors, and races ingested as dimension tables
-- Race results ingested in **seasonal batches** to respect public API rate limits
-- API pagination and throttling handled explicitly
-- Pipeline is **resumable** and safe to re-run
+### Ingestion
+- Python ingestion scripts pull data from the Ergast F1 API
+- Explicit handling of:
+  - API pagination
+  - Rate limits
+  - Seasonal batch ingestion
+- Pipelines are **idempotent** and safe to re-run
 
-## Data Model (High Level)
+### Storage
+- PostgreSQL running locally in Docker
+- Separate raw and analytics layers
+
+### Transformation
+- dbt used to implement a layered transformation approach:
+  - **Raw → Staging → Marts**
+- Data quality enforced via dbt tests
+- Star schema modeled for analytics consumption
+
+---
+
+## Data Model
+
+### Raw Tables
 - `drivers_raw`
 - `constructors_raw`
 - `races_raw`
-- `results_raw` (fact table)
+- `results_raw`
 
-## Future Work
-- dbt staging models
-- Analytics marts (driver performance, constructor dominance)
-- BI dashboards
+### Staging Models (dbt)
+- `stg_drivers`
+- `stg_constructors`
+- `stg_races`
+- `stg_results`
+
+### Analytics Marts
+**Dimensions**
+- `dim_drivers`
+- `dim_constructors`
+- `dim_races`
+
+**Fact**
+- `fact_results`  
+  *(one row per driver per race)*
+
+---
+
+## Data Quality & Testing
+- dbt tests implemented for:
+  - `not_null`
+  - `unique`
+  - `relationships` (foreign key integrity)
+- Ensures referential integrity between facts and dimensions
+
+---
+
+## Example Analytics
+- Top drivers by total career points
+- Constructor dominance by season
+- Wins per driver
+- Historical race calendar analysis
+
+(Example queries included in `analyses/`.)
+
+---
+
+## How to Run Locally
+
+```bash
+# Start Postgres
+docker compose up -d
+
+# Run dbt models & tests
+dbt run
+dbt test
