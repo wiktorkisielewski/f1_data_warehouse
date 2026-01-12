@@ -98,12 +98,119 @@ Example SQL analytics queries are available in `f1_dbt/analyses/`, including:
 
 ---
 
+## Prerequisites
+
+Before running the project locally, ensure you have the following installed:
+
+- **Git**
+- **Docker & Docker Compose**
+  - https://docs.docker.com/get-docker/
+- **Python 3.13+**
+  - Recommended to use `pyenv` or system Python
+- **pip**
+- **dbt-postgres**
+  ```bash
+  pip install dbt-postgres
+  ```
+---
 ## How to Run Locally
 
-```bash
-# Start Postgres
-docker compose up -d
+### 1️⃣ Clone the repository
 
-# Run dbt models & tests
-dbt run
-dbt test
+  ```bash
+  git clone https://github.com/SebastianSwiczerewski/f1_data_warehouse.git
+  cd f1_data_warehouse/
+  ```
+
+### 2️⃣ Start PostgreSQL with Docker
+  The project includes a preconfigured docker-compose.yml. No additional Docker setup is required 
+
+  ```bash
+  cd docker/
+  docker compose up -d
+  ```
+
+  Verify the contaner is running
+
+  ```bash
+  docker ps 
+  ```
+
+  Stop services (keep data)
+
+  ```bash
+  docker compose down
+  ```
+
+  ⚠️ WARNING: This deletes data
+
+  ```bash
+  docker compose down -v
+  ```
+
+### 3️⃣ Run ingestion scripts for raw tables to populate Postgres
+
+  ```bash
+  cd f1_data_warehouse/
+  python ingestion/ingest_drivers.py
+  python ingestion/ingest_constructors.py
+  python ingestion/ingest_races.py
+  python ingestion/ingest_results.py
+  ```
+
+  This ingests historical Formula 1 data into PostgreSQL
+
+### 4️⃣ Setup dbt connection
+
+  ```bash
+  cd f1_dbt
+  dbt debug
+  ```
+
+  Use the following values when prompted
+
+  database: postgres \
+  host: localhost \
+  port: 5433 \
+  user: f1_user \
+  password: f1_password \
+  dbname: f1_raw \
+  schema: public \
+  threads: 4 
+
+### 5️⃣ Run dbt models & tests
+
+  Run a single model:
+
+  ```bash
+  dbt run --select stg_drivers
+  ```
+
+  Run all staging models:
+
+  ```bash
+  dbt run --select staging
+  ```
+
+### 6️⃣ Run dbt tests
+
+  ```bash
+  dbt test
+  ```
+
+### 7️⃣ Analytics & Validation
+
+  ```bash
+  cd docker/
+  docker exec -it f1_postgres psql -U f1_user -d f1_raw
+  ```
+
+  Useful commands
+
+  ```bash
+  \d                  # List of relations
+  \dt                 # List tables
+  \dv                 # List views
+  \d table_name       # Describe table
+  \q                  # Exit
+  ```
