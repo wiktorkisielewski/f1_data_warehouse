@@ -192,6 +192,12 @@ Before running the project locally, ensure you have the following installed:
   dbt run --select staging
   ```
 
+  Run all dimension models:
+  
+  ```bash
+  dbt run --select marts
+  ```
+
 ### 6️⃣ Run dbt tests
 
   ```bash
