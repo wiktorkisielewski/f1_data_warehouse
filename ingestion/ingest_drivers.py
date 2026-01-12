@@ -1,6 +1,7 @@
 import os
 import requests
 import psycopg2
+import db_utils
 from dotenv import load_dotenv
 
 load_dotenv("docker/.env")
@@ -42,14 +43,6 @@ def fetch_all_drivers():
 
     return all_drivers
 
-def connect_db():
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST"),
-        port=os.getenv("POSTGRES_PORT"),
-        database=os.getenv("POSTGRES_DB"),
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD")
-    )
 
 def create_table(cur):
     cur.execute("""
@@ -80,7 +73,7 @@ def insert_drivers(cur, drivers):
 
 def main():
     drivers = fetch_all_drivers()
-    conn = connect_db()
+    conn = db_utils.connect_db()
     cur = conn.cursor()
 
     create_table(cur)

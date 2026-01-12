@@ -1,9 +1,10 @@
 import os
 import requests
 import psycopg2
+import db_utils
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv("docker/.env")
 
 
 def fetch_all_races():
@@ -37,16 +38,6 @@ def fetch_all_races():
         offset += limit
 
     return all_races
-
-
-def connect_db():
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST"),
-        port=os.getenv("POSTGRES_PORT"),
-        database=os.getenv("POSTGRES_DB"),
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD")
-    )
 
 
 def create_table(cur):
@@ -88,7 +79,7 @@ def insert_races(cur, races):
 
 def main():
     races = fetch_all_races()
-    conn = connect_db()
+    conn = db_utils.connect_db()
     cur = conn.cursor()
 
     create_table(cur)

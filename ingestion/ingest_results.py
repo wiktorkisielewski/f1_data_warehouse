@@ -1,10 +1,11 @@
 import os
 import requests
 import psycopg2
+import db_utils
 from dotenv import load_dotenv
 import time
 
-load_dotenv()
+load_dotenv("docker/.env")
 
 START_SEASON = int(os.getenv("START_SEASON", 1950))
 END_SEASON = int(os.getenv("END_SEASON", 2025))
@@ -87,16 +88,6 @@ def ingest_season(cur, season):
     return inserted
 
 
-def connect_db():
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST"),
-        port=os.getenv("POSTGRES_PORT"),
-        database=os.getenv("POSTGRES_DB"),
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD")
-    )
-
-
 def create_table(cur):
     cur.execute("""
         CREATE TABLE IF NOT EXISTS results_raw (
@@ -114,7 +105,7 @@ def create_table(cur):
 
 
 def main():
-    conn = connect_db()
+    conn = db_utils.connect_db()
     cur = conn.cursor()
 
     create_table(cur)
