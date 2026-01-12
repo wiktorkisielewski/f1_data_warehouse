@@ -12,7 +12,8 @@ services:
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # IMPORTANT: mount one level higher for Postgres 18+
+      - postgres_data:/var/lib/postgresql
 
 volumes:
   postgres_data:
