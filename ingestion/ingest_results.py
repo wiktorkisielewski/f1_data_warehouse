@@ -1,6 +1,6 @@
 import os
 import time
-import db_utils
+from ingestion import db_utils
 from dotenv import load_dotenv
 
 load_dotenv("docker/.env")
@@ -50,7 +50,7 @@ def ingest_season(cur, season):
 
 
 def create_table(cur):
-    logger.info("Ensuring results_raw table exists")
+    logger.debug("Ensuring results_raw table exists")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS results_raw (
             race_id TEXT,
@@ -112,10 +112,10 @@ def main():
 
                     logger.warning(
                         "API rate limit reached. "
-                        "Cooling down for 5 minutes before retrying season."
+                        f"Cooling down for 5 minutes before retrying season {season}"
                     )
                     time.sleep(300)
-                    logger.info("Retrying same season after cooldown")
+                    logger.info(f"Retrying season {season} after cooldown")
 
                 except Exception:
                     logger.exception(
