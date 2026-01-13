@@ -1,43 +1,10 @@
-import os
-import requests
-import psycopg2
 import db_utils
-from dotenv import load_dotenv
-
-load_dotenv("docker/.env")
-
 
 def fetch_all_constructors():
-    base_url = "https://api.jolpi.ca/ergast/f1/constructors.json"
-
-    headers = {
-        "User-Agent": "F1DataEngineering/1.0",
-        "Accept": "application/json"
-    }
-
-    limit = 100
-    offset = 0
-    all_constructors = []
-
-    while True:
-        params = {"limit": limit, "offset": offset}
-        r = requests.get(base_url, params=params, headers=headers)
-
-        if r.status_code != 200:
-            raise Exception(
-                f"API request failed with status {r.status_code}\n{r.text}"
-            )
-
-        data = r.json()
-        constructors = data["MRData"]["ConstructorTable"]["Constructors"]
-
-        if not constructors:
-            break
-
-        all_constructors.extend(constructors)
-        offset += limit
-
-    return all_constructors
+    return db_utils.fetch_paginated(
+        endpoint="/constructors.json",
+        data_path=["MRData","ConstructorTable","Constructors"]
+    )
 
 
 def create_table(cur):
