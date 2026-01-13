@@ -37,8 +37,8 @@ HEADERS = {
 
 # Rate limits
 MAX_REQUESTS_PER_SECOND = 4
-MIN_REQUEST_INTERVAL = 1 / MAX_REQUESTS_PER_SECOND
-HARD_RATE_LIMIT_SLEEP = 60
+MIN_REQUEST_INTERVAL = 1 / MAX_REQUESTS_PER_SECOND # 0.25s
+HARD_RATE_LIMIT_SLEEP = 60 # seconds (cooldown on 429)
 
 def fetch_paginated(endpoint, data_path):
     """

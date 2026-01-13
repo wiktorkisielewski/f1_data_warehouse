@@ -5,19 +5,7 @@ import db_utils
 import time
 from dotenv import load_dotenv
 
-
 load_dotenv("docker/.env")
-
-F1_API_BASE_URL = os.getenv(
-    "F1_API_BASE_URL",
-    "https://api.jolpi.ca/ergast/f1"
-)
-
-# Rate limit configuration
-MAX_REQUESTS_PER_SECOND = 4
-MIN_REQUEST_INTERVAL = 1 / MAX_REQUESTS_PER_SECOND  # 0.25s
-
-HARD_RATE_LIMIT_SLEEP = 60  # seconds (cooldown on 429)
 
 def fetch_all_drivers():
     return db_utils.fetch_paginated(
