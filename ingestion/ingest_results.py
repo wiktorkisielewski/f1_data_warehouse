@@ -5,11 +5,16 @@ from dotenv import load_dotenv
 
 load_dotenv("docker/.env")
 
+logger = db_utils.setup_logger("ingest_results")
+
 START_SEASON = int(os.getenv("START_SEASON", 1950))
 END_SEASON = int(os.getenv("END_SEASON", 2025))
 
+MAX_RETRIES_PER_SEASON = 3
+
 
 def fetch_results_for_season(season):
+    logger.debug(f"Fetching results for season {season}")
     return db_utils.fetch_paginated(
         endpoint=f"/{season}/results.json",
         data_path=["MRData", "RaceTable", "Races"]
@@ -45,6 +50,7 @@ def ingest_season(cur, season):
 
 
 def create_table(cur):
+    logger.info("Ensuring results_raw table exists")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS results_raw (
             race_id TEXT,
@@ -61,63 +67,71 @@ def create_table(cur):
 
 
 def main():
+    logger.info("Starting historical results ingestion")
+
     conn = db_utils.connect_db()
     cur = conn.cursor()
 
-    create_table(cur)
+    try:
+        create_table(cur)
 
-    total_inserted = 0
-    MAX_RETRIES_PER_SEASON = 3
+        total_inserted = 0
 
-    for season in range(START_SEASON, END_SEASON + 1):
-        retries = 0
+        for season in range(START_SEASON, END_SEASON + 1):
+            retries = 0
 
-        while True:
-            print(f"Ingesting season {season} (attempt {retries + 1})...")
-
-            try:
-                inserted = ingest_season(cur, season)
-                conn.commit()
-                total_inserted += inserted
-
-                print(
-                    f"Season {season} done "
-                    f"({inserted} results, total {total_inserted})"
+            while True:
+                logger.info(
+                    f"Ingesting season {season} "
+                    f"(attempt {retries + 1}/{MAX_RETRIES_PER_SEASON})"
                 )
 
-                time.sleep(2)  # gentle pacing between seasons
-                break  # ✅ move to NEXT season only on success
+                try:
+                    inserted = ingest_season(cur, season)
+                    conn.commit()
+                    total_inserted += inserted
 
-            except db_utils.RateLimitExceeded as e:
-                retries += 1
-                print(f"⚠️ {e}")
-
-                if retries >= MAX_RETRIES_PER_SEASON:
-                    print(
-                        f"❌ Season {season} exceeded max retries "
-                        f"({MAX_RETRIES_PER_SEASON}). Aborting ingestion."
+                    logger.info(
+                        f"Season {season} completed "
+                        f"({inserted} rows, total {total_inserted})"
                     )
-                    cur.close()
-                    conn.close()
+
+                    time.sleep(2)  # gentle pacing
+                    break  # ✅ move to next season
+
+                except db_utils.RateLimitExceeded as e:
+                    retries += 1
+                    logger.warning(str(e))
+
+                    if retries >= MAX_RETRIES_PER_SEASON:
+                        logger.error(
+                            f"Season {season} exceeded max retries "
+                            f"({MAX_RETRIES_PER_SEASON}). Aborting ingestion."
+                        )
+                        return
+
+                    logger.warning(
+                        "API rate limit reached. "
+                        "Cooling down for 5 minutes before retrying season."
+                    )
+                    time.sleep(300)
+                    logger.info("Retrying same season after cooldown")
+
+                except Exception:
+                    logger.exception(
+                        f"Fatal error while ingesting season {season}"
+                    )
                     return
 
-                print(
-                    "API rate limit reached. "
-                    "Waiting 5 minutes before retrying the same season..."
-                )
-                time.sleep(300)
-                print("Retrying season...")
+        logger.info(
+            f"Ingestion finished successfully. "
+            f"Total results processed: {total_inserted}"
+        )
 
-            except Exception as e:
-                print(f"❌ Fatal error while ingesting season {season}: {e}")
-                print("Stopping ingestion due to unrecoverable error.")
-                cur.close()
-                conn.close()
-                return
-
-    cur.close()
-    conn.close()
-    print(f"Finished. Total results processed: {total_inserted}")
+    finally:
+        cur.close()
+        conn.close()
+        logger.info("Database connection closed")
 
 
 if __name__ == "__main__":
