@@ -2,7 +2,9 @@ import os
 import requests
 import psycopg2
 import db_utils
+import time
 from dotenv import load_dotenv
+
 
 load_dotenv("docker/.env")
 
@@ -27,7 +29,6 @@ def fetch_all_drivers():
     last_request_time = 0
 
     while True:
-        # Enforce soft rate limit
         elapsed = time.time() - last_request_time
         if elapsed < MIN_REQUEST_INTERVAL:
             time.sleep(MIN_REQUEST_INTERVAL - elapsed)
@@ -41,14 +42,11 @@ def fetch_all_drivers():
         last_request_time = time.time()
 
         if r.status_code == 429:
-            print("⚠️ Rate limited. Cooling down for 60 seconds...")
+            print("⚠️ Rate limited. Cooling down for 60s...")
             time.sleep(HARD_RATE_LIMIT_SLEEP)
-            continue  # retry same offset
+            continue
 
-        if r.status_code != 200:
-            raise Exception(
-                f"API request failed ({r.status_code}): {r.text}"
-            )
+        r.raise_for_status()
 
         data = r.json()
         batch = data["MRData"]["DriverTable"]["Drivers"]
