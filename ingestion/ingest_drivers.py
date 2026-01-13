@@ -6,6 +6,12 @@ from dotenv import load_dotenv
 
 load_dotenv("docker/.env")
 
+# Rate limit configuration
+MAX_REQUESTS_PER_SECOND = 4
+MIN_REQUEST_INTERVAL = 1 / MAX_REQUESTS_PER_SECOND  # 0.25s
+
+HARD_RATE_LIMIT_SLEEP = 60  # seconds (cooldown on 429)
+
 def fetch_all_drivers():
     base_url = "https://api.jolpi.ca/ergast/f1/drivers.json"
 
@@ -18,12 +24,26 @@ def fetch_all_drivers():
     offset = 0
     drivers = []
 
+    last_request_time = 0
+
     while True:
+        # Enforce soft rate limit
+        elapsed = time.time() - last_request_time
+        if elapsed < MIN_REQUEST_INTERVAL:
+            time.sleep(MIN_REQUEST_INTERVAL - elapsed)
+
         r = requests.get(
             base_url,
             headers=headers,
             params={"limit": limit, "offset": offset}
         )
+
+        last_request_time = time.time()
+
+        if r.status_code == 429:
+            print("⚠️ Rate limited. Cooling down for 60 seconds...")
+            time.sleep(HARD_RATE_LIMIT_SLEEP)
+            continue  # retry same offset
 
         if r.status_code != 200:
             raise Exception(
@@ -38,7 +58,6 @@ def fetch_all_drivers():
 
         drivers.extend(batch)
         offset += limit
-        time.sleep(0.2)
 
     return drivers
 
