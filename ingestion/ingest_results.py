@@ -1,9 +1,8 @@
 import os
-import requests
-import psycopg2
 import db_utils
-from dotenv import load_dotenv
 import time
+from dotenv import load_dotenv
+
 
 load_dotenv("docker/.env")
 
@@ -12,50 +11,10 @@ END_SEASON = int(os.getenv("END_SEASON", 2025))
 
 
 def fetch_results_for_season(season):
-    """
-    Fetch ALL race results for a given season using pagination.
-    Ergast defaults to limit=30, so we must paginate to get full seasons.
-    """
-    base_url = f"https://api.jolpi.ca/ergast/f1/{season}/results.json"
-
-    headers = {
-        "User-Agent": "F1DataEngineering/1.0",
-        "Accept": "application/json"
-    }
-
-    limit = 100
-    offset = 0
-    all_races = []
-
-    while True:
-        params = {
-            "limit": limit,
-            "offset": offset
-        }
-
-        r = requests.get(base_url, headers=headers, params=params)
-
-        if r.status_code == 429:
-            raise Exception(f"Rate limited on season {season}")
-
-        if r.status_code != 200:
-            raise Exception(
-                f"API request failed for season {season} "
-                f"with status {r.status_code}"
-            )
-
-        data = r.json()
-        races = data["MRData"]["RaceTable"]["Races"]
-
-        if not races:
-            break
-
-        all_races.extend(races)
-        offset += limit
-
-        time.sleep(0.5)  # pagination pause
-
-    return all_races
+    return db_utils.fetch_paginated(
+        endpoint=f"/{season}/results.json",
+        data_path=["MRData", "RaceTable", "Races"]
+    )
 
 
 def ingest_season(cur, season):
