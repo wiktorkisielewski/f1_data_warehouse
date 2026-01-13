@@ -1,20 +1,20 @@
-import db_utils
+from ingestion import db_utils
 
 logger = db_utils.setup_logger("ingest_drivers")
 
 
 def fetch_all_drivers():
-    logger.info("Fetching drivers from API")
+    logger.debug("Fetching drivers from API")
     drivers = db_utils.fetch_paginated(
         endpoint="/drivers.json",
         data_path=["MRData", "DriverTable", "Drivers"]
     )
-    logger.info(f"Fetched {len(drivers)} drivers")
+    logger.debug(f"Fetched {len(drivers)} drivers")
     return drivers
 
 
 def create_table(cur):
-    logger.info("Ensuring drivers_raw table exists")
+    logger.debug("Ensuring drivers_raw table exists")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS drivers_raw (
             driver_id TEXT PRIMARY KEY,
@@ -28,7 +28,7 @@ def create_table(cur):
 
 
 def insert_drivers(cur, drivers):
-    logger.info("Inserting drivers into database")
+    logger.debug("Inserting drivers into database")
     for d in drivers:
         cur.execute("""
             INSERT INTO drivers_raw
@@ -42,7 +42,7 @@ def insert_drivers(cur, drivers):
             d.get("nationality"),
             d.get("dateOfBirth")
         ))
-    logger.info("Driver insert completed")
+    logger.debug("Driver insert completed")
 
 
 def main():
