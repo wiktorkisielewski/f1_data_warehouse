@@ -1,20 +1,20 @@
-import db_utils
+from ingestion import db_utils
 
 logger = db_utils.setup_logger("ingest_constructors")
 
 
 def fetch_all_constructors():
-    logger.info("Fetching constructors from API")
+    logger.debug("Fetching constructors from API")
     constructors = db_utils.fetch_paginated(
         endpoint="/constructors.json",
         data_path=["MRData", "ConstructorTable", "Constructors"]
     )
-    logger.info(f"Fetched {len(constructors)} constructors")
+    logger.debug(f"Fetched {len(constructors)} constructors")
     return constructors
 
 
 def create_table(cur):
-    logger.info("Ensuring constructors_raw table exists")
+    logger.debug("Ensuring constructors_raw table exists")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS constructors_raw (
             constructor_id TEXT PRIMARY KEY,
@@ -26,7 +26,7 @@ def create_table(cur):
 
 
 def insert_constructors(cur, constructors):
-    logger.info("Inserting constructors into database")
+    logger.debug("Inserting constructors into database")
     for c in constructors:
         cur.execute("""
             INSERT INTO constructors_raw
@@ -38,7 +38,7 @@ def insert_constructors(cur, constructors):
             c.get("nationality"),
             c.get("url")
         ))
-    logger.info("Constructor insert completed")
+    logger.debug("Constructor insert completed")
 
 
 def main():
