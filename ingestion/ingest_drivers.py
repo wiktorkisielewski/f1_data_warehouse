@@ -1,14 +1,20 @@
-
 import db_utils
 
+logger = db_utils.setup_logger("ingest_drivers")
+
+
 def fetch_all_drivers():
-    return db_utils.fetch_paginated(
+    logger.info("Fetching drivers from API")
+    drivers = db_utils.fetch_paginated(
         endpoint="/drivers.json",
         data_path=["MRData", "DriverTable", "Drivers"]
     )
+    logger.info(f"Fetched {len(drivers)} drivers")
+    return drivers
 
 
 def create_table(cur):
+    logger.info("Ensuring drivers_raw table exists")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS drivers_raw (
             driver_id TEXT PRIMARY KEY,
@@ -20,7 +26,9 @@ def create_table(cur):
         );
     """)
 
+
 def insert_drivers(cur, drivers):
+    logger.info("Inserting drivers into database")
     for d in drivers:
         cur.execute("""
             INSERT INTO drivers_raw
@@ -34,20 +42,33 @@ def insert_drivers(cur, drivers):
             d.get("nationality"),
             d.get("dateOfBirth")
         ))
+    logger.info("Driver insert completed")
+
 
 def main():
-    drivers = fetch_all_drivers()
+    logger.info("Starting drivers ingestion")
+
     conn = db_utils.connect_db()
     cur = conn.cursor()
 
-    create_table(cur)
-    insert_drivers(cur, drivers)
+    try:
+        drivers = fetch_all_drivers()
+        create_table(cur)
+        insert_drivers(cur, drivers)
+        conn.commit()
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        logger.info(f"Loaded {len(drivers)} drivers successfully")
 
-    print(f"Loaded {len(drivers)} drivers")
+    except Exception as e:
+        conn.rollback()
+        logger.exception("Fatal error during drivers ingestion")
+        raise
+
+    finally:
+        cur.close()
+        conn.close()
+        logger.info("Drivers ingestion finished")
+
 
 if __name__ == "__main__":
     main()
