@@ -1,13 +1,20 @@
 import db_utils
 
+logger = db_utils.setup_logger("ingest_races")
+
+
 def fetch_all_races():
-    return db_utils.fetch_paginated(
+    logger.info("Fetching races from API")
+    races = db_utils.fetch_paginated(
         endpoint="/races.json",
-        data_path=["MRData","RaceTable","Races"]
+        data_path=["MRData", "RaceTable", "Races"]
     )
+    logger.info(f"Fetched {len(races)} races")
+    return races
 
 
 def create_table(cur):
+    logger.info("Ensuring races_raw table exists")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS races_raw (
             race_id TEXT PRIMARY KEY,
@@ -25,6 +32,7 @@ def create_table(cur):
 
 
 def insert_races(cur, races):
+    logger.info("Inserting races into database")
     for r in races:
         cur.execute("""
             INSERT INTO races_raw
@@ -42,21 +50,32 @@ def insert_races(cur, races):
             r["Circuit"]["Location"].get("locality"),
             r["Circuit"]["Location"].get("country")
         ))
+    logger.info("Race insert completed")
 
 
 def main():
-    races = fetch_all_races()
+    logger.info("Starting races ingestion")
+
     conn = db_utils.connect_db()
     cur = conn.cursor()
 
-    create_table(cur)
-    insert_races(cur, races)
+    try:
+        races = fetch_all_races()
+        create_table(cur)
+        insert_races(cur, races)
+        conn.commit()
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        logger.info(f"Loaded {len(races)} races successfully")
 
-    print(f"Loaded {len(races)} races")
+    except Exception as e:
+        conn.rollback()
+        logger.exception("Fatal error during races ingestion")
+        raise
+
+    finally:
+        cur.close()
+        conn.close()
+        logger.info("Races ingestion finished")
 
 
 if __name__ == "__main__":
