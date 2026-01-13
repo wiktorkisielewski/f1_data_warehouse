@@ -115,12 +115,27 @@ Before running the project locally, ensure you have the following installed:
 ---
 ## How to Run Locally
 
-### 1️⃣ Clone the repository
+### 1️⃣ Local Environment Setup
+
+  Clone the repository
 
   ```bash
   git clone https://github.com/SebastianSwiczerewski/f1_data_warehouse.git
   cd f1_data_warehouse/
   ```
+
+  Create a local .env file from the example provided and populate the values
+
+  ```bash
+  cp .env.example .env
+  ```
+  
+  Install Python dependencies
+
+  ```bash
+  pip install -r requirements.txt
+  ```
+
 
 ### 2️⃣ Start PostgreSQL with Docker
   The project includes a preconfigured docker-compose.yml. No additional Docker setup is required 
@@ -136,47 +151,49 @@ Before running the project locally, ensure you have the following installed:
   docker ps 
   ```
 
-  Stop services (keep data)
-
-  ```bash
-  docker compose down
-  ```
-
-  ⚠️ WARNING: This deletes data
-
-  ```bash
-  docker compose down -v
-  ```
-
-### 3️⃣ Run ingestion scripts for raw tables to populate Postgres
-
-  ```bash
-  cd f1_data_warehouse/
-  python ingestion/ingest_drivers.py
-  python ingestion/ingest_constructors.py
-  python ingestion/ingest_races.py
-  python ingestion/ingest_results.py
-  ```
+### 3️⃣ Run ingestion script for raw tables to populate Postgres
 
   This ingests historical Formula 1 data into PostgreSQL
+  Execution time for ingest_results.py depends on API rate limits and includes automatic cooldowns and retries
+  Due to API rate limits the ingestion process may take up to 30min
+
+  ```bash
+  cd .. # f1_data_warehouse/ 
+  python -m ingestion.ingest_all # to run all ~27min, 28134 rows
+  ```
+
+  Optionally to run separate ingestion files
+
+  ```bash
+  python ingestion/ingest_drivers.py # ~ 6sec, 874 rows
+  python ingestion/ingest_constructors.py # ~ 2sec, 214 rows
+  python ingestion/ingest_races.py # ~ 9sec, 1173 rows
+  python ingestion/ingest_results.py # ~ 25min, 25873 rows
+  ```
 
 ### 4️⃣ Setup dbt connection
 
   ```bash
   cd f1_dbt
-  dbt debug
+  dbt init
   ```
 
   Use the following values when prompted
 
-  database: postgres \
-  host: localhost \
-  port: 5433 \
-  user: f1_user \
-  password: f1_password \
-  dbname: f1_raw \
+  database: postgres or choose number 1 \
+  host:  same as in .env \
+  port: same as in .env \
+  user: same as in .env \
+  password: same as in .env \
+  dbname: same as in .env \
   schema: public \
   threads: 4 
+
+  Test out the connection
+
+  ```bash
+  dbt debug
+  ```
 
 ### 5️⃣ Run dbt models & tests
 
@@ -219,4 +236,21 @@ Before running the project locally, ensure you have the following installed:
   \dv                 # List views
   \d table_name       # Describe table
   \q                  # Exit
+  ```
+
+  For example analytics queries using fact and dimension models check ./f1_dbt/analyses/f1_analytics.sql
+
+
+### 8️⃣ Tear Down Local Environment
+
+  Stop Docker services (keep data)
+
+  ```bash
+  docker compose down
+  ```
+
+  ⚠️ WARNING: This deletes data
+
+  ```bash
+  docker compose down -v
   ```
