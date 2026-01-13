@@ -20,49 +20,10 @@ MIN_REQUEST_INTERVAL = 1 / MAX_REQUESTS_PER_SECOND  # 0.25s
 HARD_RATE_LIMIT_SLEEP = 60  # seconds (cooldown on 429)
 
 def fetch_all_drivers():
-    base_url = f"{F1_API_BASE_URL}/drivers.json"
-
-    headers = {
-        "User-Agent": "F1DataEngineering/1.0",
-        "Accept": "application/json"
-    }
-
-    limit = 100
-    offset = 0
-    drivers = []
-
-    last_request_time = 0
-
-    while True:
-        elapsed = time.time() - last_request_time
-        if elapsed < MIN_REQUEST_INTERVAL:
-            time.sleep(MIN_REQUEST_INTERVAL - elapsed)
-
-        r = requests.get(
-            base_url,
-            headers=headers,
-            params={"limit": limit, "offset": offset}
-        )
-
-        last_request_time = time.time()
-
-        if r.status_code == 429:
-            print("⚠️ Rate limited. Cooling down for 60 seconds...")
-            time.sleep(HARD_RATE_LIMIT_SLEEP)
-            continue
-
-        r.raise_for_status()
-
-        data = r.json()
-        batch = data["MRData"]["DriverTable"]["Drivers"]
-
-        if not batch:
-            break
-
-        drivers.extend(batch)
-        offset += limit
-
-    return drivers
+    return db_utils.fetch_paginated(
+        endpoint="/drivers.json",
+        data_path=["MRData", "DriverTable", "Drivers"]
+    )
 
 
 def create_table(cur):
