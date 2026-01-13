@@ -26,8 +26,9 @@ def setup_logger(name: str) -> logging.Logger:
     log_file = os.path.join(LOG_DIR, f"{name}_{timestamp}.log")
 
     formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-    )
+    "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(formatter)
@@ -113,7 +114,13 @@ def fetch_paginated(endpoint, data_path):
                 "API rate limit exceeded (HTTP 429). Cooldown required."
             )
 
-        # ❌ Other HTTP errors
+        # 🛑 Transient server errors (retryable)
+        if response.status_code in {500, 502, 503, 504}:
+            raise RateLimitExceeded(
+                f"Server error {response.status_code}. Temporary API failure."
+            )
+
+        # ❌ Non-retryable errors
         response.raise_for_status()
 
         # ✅ Success path
