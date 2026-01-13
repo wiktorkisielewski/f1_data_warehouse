@@ -1,8 +1,7 @@
 import os
-import db_utils
 import time
+import db_utils
 from dotenv import load_dotenv
-
 
 load_dotenv("docker/.env")
 
@@ -19,7 +18,6 @@ def fetch_results_for_season(season):
 
 def ingest_season(cur, season):
     races = fetch_results_for_season(season)
-
     inserted = 0
 
     for race in races:
@@ -41,7 +39,6 @@ def ingest_season(cur, season):
                 float(res["points"]),
                 res.get("status")
             ))
-
             inserted += 1
 
     return inserted
@@ -70,31 +67,56 @@ def main():
     create_table(cur)
 
     total_inserted = 0
+    MAX_RETRIES_PER_SEASON = 3
 
     for season in range(START_SEASON, END_SEASON + 1):
-        print(f"Ingesting season {season}...")
+        retries = 0
 
-        try:
-            inserted = ingest_season(cur, season)
-            conn.commit()
-            total_inserted += inserted
+        while True:
+            print(f"Ingesting season {season} (attempt {retries + 1})...")
 
-            print(
-                f"Season {season} done "
-                f"({inserted} results, total {total_inserted})"
-            )
+            try:
+                inserted = ingest_season(cur, season)
+                conn.commit()
+                total_inserted += inserted
 
-            time.sleep(2)  # cooldown between seasons
+                print(
+                    f"Season {season} done "
+                    f"({inserted} results, total {total_inserted})"
+                )
 
-        except Exception as e:
-            print(f"Season {season} failed: {e}")
-            print("Cooling down for 5 minutes and stopping.")
-            time.sleep(300)
-            break
+                time.sleep(2)  # gentle pacing between seasons
+                break  # ✅ move to NEXT season only on success
+
+            except db_utils.RateLimitExceeded as e:
+                retries += 1
+                print(f"⚠️ {e}")
+
+                if retries >= MAX_RETRIES_PER_SEASON:
+                    print(
+                        f"❌ Season {season} exceeded max retries "
+                        f"({MAX_RETRIES_PER_SEASON}). Aborting ingestion."
+                    )
+                    cur.close()
+                    conn.close()
+                    return
+
+                print(
+                    "API rate limit reached. "
+                    "Waiting 5 minutes before retrying the same season..."
+                )
+                time.sleep(300)
+                print("Retrying season...")
+
+            except Exception as e:
+                print(f"❌ Fatal error while ingesting season {season}: {e}")
+                print("Stopping ingestion due to unrecoverable error.")
+                cur.close()
+                conn.close()
+                return
 
     cur.close()
     conn.close()
-
     print(f"Finished. Total results processed: {total_inserted}")
 
 
