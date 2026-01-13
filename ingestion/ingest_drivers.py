@@ -1,11 +1,5 @@
-import os
-import requests
-import psycopg2
-import db_utils
-import time
-from dotenv import load_dotenv
 
-load_dotenv("docker/.env")
+import db_utils
 
 def fetch_all_drivers():
     return db_utils.fetch_paginated(
