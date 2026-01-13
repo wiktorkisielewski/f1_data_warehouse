@@ -40,13 +40,16 @@ MAX_REQUESTS_PER_SECOND = 4
 MIN_REQUEST_INTERVAL = 1 / MAX_REQUESTS_PER_SECOND # 0.25s
 HARD_RATE_LIMIT_SLEEP = 60 # seconds (cooldown on 429)
 
+class RateLimitExceeded(Exception):
+    """Raised when API rate limit is hit and ingestion should pause."""
+
+
 def fetch_paginated(endpoint, data_path):
     """
     Generic paginated fetcher for Ergast-style APIs.
 
     :param endpoint: API endpoint (e.g. "/drivers.json")
     :param data_path: list of keys to reach the records
-                      (e.g. ["MRData", "DriverTable", "Drivers"])
     """
     limit = 100
     offset = 0
@@ -55,6 +58,7 @@ def fetch_paginated(endpoint, data_path):
     last_request_time = 0
 
     while True:
+        # Enforce rate limit
         elapsed = time.time() - last_request_time
         if elapsed < MIN_REQUEST_INTERVAL:
             time.sleep(MIN_REQUEST_INTERVAL - elapsed)
@@ -69,13 +73,16 @@ def fetch_paginated(endpoint, data_path):
 
         last_request_time = time.time()
 
+        # 🚦 Rate limit handling
         if response.status_code == 429:
-            print("⚠️ Rate limited. Cooling down...")
-            time.sleep(HARD_RATE_LIMIT_SLEEP)
-            continue
+            raise RateLimitExceeded(
+                "API rate limit exceeded (HTTP 429). Cooldown required."
+            )
 
+        # ❌ Other HTTP errors
         response.raise_for_status()
 
+        # ✅ Success path
         data = response.json()
 
         batch = data
