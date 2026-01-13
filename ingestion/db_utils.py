@@ -1,10 +1,44 @@
 import os
+import logging
 import time
 import requests
 import psycopg2
 from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv()
+
+# -------------------------
+# Logging
+# -------------------------
+
+LOG_DIR = os.getenv("LOG_DIR", "ingestion/logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+def setup_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+
+    if logger.handlers:
+        return logger  # prevent duplicate handlers
+
+    timestamp = datetime.now().strftime("%Y%m%d")
+    log_file = os.path.join(LOG_DIR, f"{name}_{timestamp}.log")
+
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    )
+
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(formatter)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
+
+    return logger
 
 # -------------------------
 # Database
