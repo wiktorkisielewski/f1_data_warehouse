@@ -16,32 +16,31 @@ def fetch_all_drivers():
 
     limit = 100
     offset = 0
-    all_drivers = []
+    drivers = []
 
     while True:
-        params = {
-            "limit": limit,
-            "offset": offset
-        }
-
-        r = requests.get(base_url, params=params, headers=headers)
+        r = requests.get(
+            base_url,
+            headers=headers,
+            params={"limit": limit, "offset": offset}
+        )
 
         if r.status_code != 200:
             raise Exception(
-                f"API request failed with status {r.status_code}\n{r.text}"
+                f"API request failed ({r.status_code}): {r.text}"
             )
 
         data = r.json()
-        drivers = data["MRData"]["DriverTable"]["Drivers"]
+        batch = data["MRData"]["DriverTable"]["Drivers"]
 
-        # STOP condition
-        if not drivers:
+        if not batch:
             break
 
-        all_drivers.extend(drivers)
+        drivers.extend(batch)
         offset += limit
+        time.sleep(0.2)
 
-    return all_drivers
+    return drivers
 
 
 def create_table(cur):
