@@ -8,6 +8,11 @@ from dotenv import load_dotenv
 
 load_dotenv("docker/.env")
 
+F1_API_BASE_URL = os.getenv(
+    "F1_API_BASE_URL",
+    "https://api.jolpi.ca/ergast/f1"
+)
+
 # Rate limit configuration
 MAX_REQUESTS_PER_SECOND = 4
 MIN_REQUEST_INTERVAL = 1 / MAX_REQUESTS_PER_SECOND  # 0.25s
@@ -15,7 +20,7 @@ MIN_REQUEST_INTERVAL = 1 / MAX_REQUESTS_PER_SECOND  # 0.25s
 HARD_RATE_LIMIT_SLEEP = 60  # seconds (cooldown on 429)
 
 def fetch_all_drivers():
-    base_url = "https://api.jolpi.ca/ergast/f1/drivers.json"
+    base_url = f"{F1_API_BASE_URL}/drivers.json"
 
     headers = {
         "User-Agent": "F1DataEngineering/1.0",
@@ -42,7 +47,7 @@ def fetch_all_drivers():
         last_request_time = time.time()
 
         if r.status_code == 429:
-            print("⚠️ Rate limited. Cooling down for 60s...")
+            print("⚠️ Rate limited. Cooling down for 60 seconds...")
             time.sleep(HARD_RATE_LIMIT_SLEEP)
             continue
 
