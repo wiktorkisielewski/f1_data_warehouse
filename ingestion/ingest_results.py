@@ -1,65 +1,28 @@
 import os
-import requests
-import psycopg2
-from dotenv import load_dotenv
 import time
+from ingestion import db_utils
+from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv("docker/.env")
+
+logger = db_utils.setup_logger("ingest_results")
 
 START_SEASON = int(os.getenv("START_SEASON", 1950))
 END_SEASON = int(os.getenv("END_SEASON", 2025))
 
+MAX_RETRIES_PER_SEASON = 3
+
 
 def fetch_results_for_season(season):
-    """
-    Fetch ALL race results for a given season using pagination.
-    Ergast defaults to limit=30, so we must paginate to get full seasons.
-    """
-    base_url = f"https://api.jolpi.ca/ergast/f1/{season}/results.json"
-
-    headers = {
-        "User-Agent": "F1DataEngineering/1.0",
-        "Accept": "application/json"
-    }
-
-    limit = 100
-    offset = 0
-    all_races = []
-
-    while True:
-        params = {
-            "limit": limit,
-            "offset": offset
-        }
-
-        r = requests.get(base_url, headers=headers, params=params)
-
-        if r.status_code == 429:
-            raise Exception(f"Rate limited on season {season}")
-
-        if r.status_code != 200:
-            raise Exception(
-                f"API request failed for season {season} "
-                f"with status {r.status_code}"
-            )
-
-        data = r.json()
-        races = data["MRData"]["RaceTable"]["Races"]
-
-        if not races:
-            break
-
-        all_races.extend(races)
-        offset += limit
-
-        time.sleep(0.5)  # pagination pause
-
-    return all_races
+    logger.debug(f"Fetching results for season {season}")
+    return db_utils.fetch_paginated(
+        endpoint=f"/{season}/results.json",
+        data_path=["MRData", "RaceTable", "Races"]
+    )
 
 
 def ingest_season(cur, season):
     races = fetch_results_for_season(season)
-
     inserted = 0
 
     for race in races:
@@ -81,23 +44,13 @@ def ingest_season(cur, season):
                 float(res["points"]),
                 res.get("status")
             ))
-
             inserted += 1
 
     return inserted
 
 
-def connect_db():
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST"),
-        port=os.getenv("POSTGRES_PORT"),
-        database=os.getenv("POSTGRES_DB"),
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD")
-    )
-
-
 def create_table(cur):
+    logger.debug("Ensuring results_raw table exists")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS results_raw (
             race_id TEXT,
@@ -114,38 +67,71 @@ def create_table(cur):
 
 
 def main():
-    conn = connect_db()
+    logger.info("Starting historical results ingestion")
+
+    conn = db_utils.connect_db()
     cur = conn.cursor()
 
-    create_table(cur)
+    try:
+        create_table(cur)
 
-    total_inserted = 0
+        total_inserted = 0
 
-    for season in range(START_SEASON, END_SEASON + 1):
-        print(f"Ingesting season {season}...")
+        for season in range(START_SEASON, END_SEASON + 1):
+            retries = 0
 
-        try:
-            inserted = ingest_season(cur, season)
-            conn.commit()
-            total_inserted += inserted
+            while True:
+                logger.info(
+                    f"Ingesting season {season} "
+                    f"(attempt {retries + 1}/{MAX_RETRIES_PER_SEASON})"
+                )
 
-            print(
-                f"Season {season} done "
-                f"({inserted} results, total {total_inserted})"
-            )
+                try:
+                    inserted = ingest_season(cur, season)
+                    conn.commit()
+                    total_inserted += inserted
 
-            time.sleep(2)  # cooldown between seasons
+                    logger.info(
+                        f"Season {season} completed "
+                        f"({inserted} rows, total {total_inserted})"
+                    )
 
-        except Exception as e:
-            print(f"Season {season} failed: {e}")
-            print("Cooling down for 5 minutes and stopping.")
-            time.sleep(300)
-            break
+                    time.sleep(2)  # gentle pacing
+                    break  # ✅ move to next season
 
-    cur.close()
-    conn.close()
+                except db_utils.RateLimitExceeded as e:
+                    retries += 1
+                    logger.warning(str(e))
 
-    print(f"Finished. Total results processed: {total_inserted}")
+                    if retries >= MAX_RETRIES_PER_SEASON:
+                        logger.error(
+                            f"Season {season} exceeded max retries "
+                            f"({MAX_RETRIES_PER_SEASON}). Aborting ingestion."
+                        )
+                        return
+
+                    logger.warning(
+                        "API rate limit reached. "
+                        f"Cooling down for 5 minutes before retrying season {season}"
+                    )
+                    time.sleep(300)
+                    logger.info(f"Retrying season {season} after cooldown")
+
+                except Exception:
+                    logger.exception(
+                        f"Fatal error while ingesting season {season}"
+                    )
+                    return
+
+        logger.info(
+            f"Ingestion finished successfully. "
+            f"Total results processed: {total_inserted}"
+        )
+
+    finally:
+        cur.close()
+        conn.close()
+        logger.info("Database connection closed")
 
 
 if __name__ == "__main__":

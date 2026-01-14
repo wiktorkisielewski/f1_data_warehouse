@@ -1,55 +1,20 @@
-import os
-import requests
-import psycopg2
-from dotenv import load_dotenv
+from ingestion import db_utils
 
-load_dotenv()
+logger = db_utils.setup_logger("ingest_constructors")
 
 
 def fetch_all_constructors():
-    base_url = "https://api.jolpi.ca/ergast/f1/constructors.json"
-
-    headers = {
-        "User-Agent": "F1DataEngineering/1.0",
-        "Accept": "application/json"
-    }
-
-    limit = 100
-    offset = 0
-    all_constructors = []
-
-    while True:
-        params = {"limit": limit, "offset": offset}
-        r = requests.get(base_url, params=params, headers=headers)
-
-        if r.status_code != 200:
-            raise Exception(
-                f"API request failed with status {r.status_code}\n{r.text}"
-            )
-
-        data = r.json()
-        constructors = data["MRData"]["ConstructorTable"]["Constructors"]
-
-        if not constructors:
-            break
-
-        all_constructors.extend(constructors)
-        offset += limit
-
-    return all_constructors
-
-
-def connect_db():
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST"),
-        port=os.getenv("POSTGRES_PORT"),
-        database=os.getenv("POSTGRES_DB"),
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD")
+    logger.debug("Fetching constructors from API")
+    constructors = db_utils.fetch_paginated(
+        endpoint="/constructors.json",
+        data_path=["MRData", "ConstructorTable", "Constructors"]
     )
+    logger.debug(f"Fetched {len(constructors)} constructors")
+    return constructors
 
 
 def create_table(cur):
+    logger.debug("Ensuring constructors_raw table exists")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS constructors_raw (
             constructor_id TEXT PRIMARY KEY,
@@ -61,6 +26,7 @@ def create_table(cur):
 
 
 def insert_constructors(cur, constructors):
+    logger.debug("Inserting constructors into database")
     for c in constructors:
         cur.execute("""
             INSERT INTO constructors_raw
@@ -72,21 +38,32 @@ def insert_constructors(cur, constructors):
             c.get("nationality"),
             c.get("url")
         ))
+    logger.debug("Constructor insert completed")
 
 
 def main():
-    constructors = fetch_all_constructors()
-    conn = connect_db()
+    logger.info("Starting constructors ingestion")
+
+    conn = db_utils.connect_db()
     cur = conn.cursor()
 
-    create_table(cur)
-    insert_constructors(cur, constructors)
+    try:
+        constructors = fetch_all_constructors()
+        create_table(cur)
+        insert_constructors(cur, constructors)
+        conn.commit()
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        logger.info(f"Loaded {len(constructors)} constructors successfully")
 
-    print(f"Loaded {len(constructors)} constructors")
+    except Exception as e:
+        conn.rollback()
+        logger.exception("Fatal error during constructors ingestion")
+        raise
+
+    finally:
+        cur.close()
+        conn.close()
+        logger.info("Constructors ingestion finished")
 
 
 if __name__ == "__main__":

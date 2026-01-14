@@ -1,55 +1,20 @@
-import os
-import requests
-import psycopg2
-from dotenv import load_dotenv
+from ingestion import db_utils
 
-load_dotenv()
+logger = db_utils.setup_logger("ingest_races")
 
 
 def fetch_all_races():
-    base_url = "https://api.jolpi.ca/ergast/f1/races.json"
-
-    headers = {
-        "User-Agent": "F1DataEngineering/1.0",
-        "Accept": "application/json"
-    }
-
-    limit = 100
-    offset = 0
-    all_races = []
-
-    while True:
-        params = {"limit": limit, "offset": offset}
-        r = requests.get(base_url, params=params, headers=headers)
-
-        if r.status_code != 200:
-            raise Exception(
-                f"API request failed with status {r.status_code}\n{r.text}"
-            )
-
-        data = r.json()
-        races = data["MRData"]["RaceTable"]["Races"]
-
-        if not races:
-            break
-
-        all_races.extend(races)
-        offset += limit
-
-    return all_races
-
-
-def connect_db():
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST"),
-        port=os.getenv("POSTGRES_PORT"),
-        database=os.getenv("POSTGRES_DB"),
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD")
+    logger.debug("Fetching races from API")
+    races = db_utils.fetch_paginated(
+        endpoint="/races.json",
+        data_path=["MRData", "RaceTable", "Races"]
     )
+    logger.debug(f"Fetched {len(races)} races")
+    return races
 
 
 def create_table(cur):
+    logger.debug("Ensuring races_raw table exists")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS races_raw (
             race_id TEXT PRIMARY KEY,
@@ -67,6 +32,7 @@ def create_table(cur):
 
 
 def insert_races(cur, races):
+    logger.debug("Inserting races into database")
     for r in races:
         cur.execute("""
             INSERT INTO races_raw
@@ -84,21 +50,32 @@ def insert_races(cur, races):
             r["Circuit"]["Location"].get("locality"),
             r["Circuit"]["Location"].get("country")
         ))
+    logger.debug("Race insert completed")
 
 
 def main():
-    races = fetch_all_races()
-    conn = connect_db()
+    logger.info("Starting races ingestion")
+
+    conn = db_utils.connect_db()
     cur = conn.cursor()
 
-    create_table(cur)
-    insert_races(cur, races)
+    try:
+        races = fetch_all_races()
+        create_table(cur)
+        insert_races(cur, races)
+        conn.commit()
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        logger.info(f"Loaded {len(races)} races successfully")
 
-    print(f"Loaded {len(races)} races")
+    except Exception as e:
+        conn.rollback()
+        logger.exception("Fatal error during races ingestion")
+        raise
+
+    finally:
+        cur.close()
+        conn.close()
+        logger.info("Races ingestion finished")
 
 
 if __name__ == "__main__":

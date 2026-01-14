@@ -2,9 +2,9 @@ version: "3.9"
 
 services:
   postgres:
-    image: postgres:15
+    image: postgres:18
     container_name: f1_postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -12,7 +12,8 @@ services:
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # IMPORTANT: mount one level higher for Postgres 18+
+      - postgres_data:/var/lib/postgresql
 
 volumes:
   postgres_data:
