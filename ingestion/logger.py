@@ -13,10 +13,20 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 def setup_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+    LOG_LEVEL_MAP = {
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL,
+    }
+
+    logger.setLevel(LOG_LEVEL_MAP.get(LOG_LEVEL, logging.INFO))
 
     if logger.handlers:
-        return logger  # prevent duplicate handlers
+        return logger
 
     timestamp = datetime.now().strftime("%Y%m%d")
     log_file = os.path.join(LOG_DIR, f"{name}_{timestamp}.log")
@@ -26,10 +36,14 @@ def setup_logger(name: str) -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
+    # Logs File → EVERYTHING
     file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
 
+    # Console → INFO+
     stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(formatter)
 
     logger.addHandler(file_handler)
