@@ -1,11 +1,13 @@
-from ingestion import db_utils
+from ingestion.db import connect_db
+from ingestion.api import fetch_paginated
+from ingestion.logger import setup_logger
 
-logger = db_utils.setup_logger("ingest_races")
+logger = setup_logger("ingest_races")
 
 
 def fetch_all_races():
     logger.debug("Fetching races from API")
-    races = db_utils.fetch_paginated(
+    races = fetch_paginated(
         endpoint="/races.json",
         data_path=["MRData", "RaceTable", "Races"]
     )
@@ -56,7 +58,7 @@ def insert_races(cur, races):
 def main():
     logger.info("Starting races ingestion")
 
-    conn = db_utils.connect_db()
+    conn = connect_db()
     cur = conn.cursor()
 
     try:
