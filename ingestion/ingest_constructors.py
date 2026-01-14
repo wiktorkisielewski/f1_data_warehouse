@@ -1,11 +1,13 @@
-from ingestion import db_utils
+from ingestion.db import connect_db
+from ingestion.api import fetch_paginated
+from ingestion.logger import setup_logger
 
-logger = db_utils.setup_logger("ingest_constructors")
+logger = setup_logger("ingest_constructors")
 
 
 def fetch_all_constructors():
     logger.debug("Fetching constructors from API")
-    constructors = db_utils.fetch_paginated(
+    constructors = fetch_paginated(
         endpoint="/constructors.json",
         data_path=["MRData", "ConstructorTable", "Constructors"]
     )
@@ -44,7 +46,7 @@ def insert_constructors(cur, constructors):
 def main():
     logger.info("Starting constructors ingestion")
 
-    conn = db_utils.connect_db()
+    conn = connect_db()
     cur = conn.cursor()
 
     try:
