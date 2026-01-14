@@ -1,11 +1,13 @@
-from ingestion import db_utils
+from ingestion.db import connect_db
+from ingestion.api import fetch_paginated
+from ingestion.logger import setup_logger
 
-logger = db_utils.setup_logger("ingest_drivers")
+logger = setup_logger("ingest_drivers")
 
 
 def fetch_all_drivers():
     logger.debug("Fetching drivers from API")
-    drivers = db_utils.fetch_paginated(
+    drivers = fetch_paginated(
         endpoint="/drivers.json",
         data_path=["MRData", "DriverTable", "Drivers"]
     )
@@ -48,7 +50,7 @@ def insert_drivers(cur, drivers):
 def main():
     logger.info("Starting drivers ingestion")
 
-    conn = db_utils.connect_db()
+    conn = connect_db()
     cur = conn.cursor()
 
     try:
