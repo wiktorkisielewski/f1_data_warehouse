@@ -1,11 +1,13 @@
 import os
 import time
-from ingestion import db_utils
+from ingestion.db import connect_db
+from ingestion.api import fetch_paginated, RateLimitExceeded
+from ingestion.logger import setup_logger
 from dotenv import load_dotenv
 
 load_dotenv("docker/.env")
 
-logger = db_utils.setup_logger("ingest_results")
+logger = setup_logger("ingest_results")
 
 START_SEASON = int(os.getenv("START_SEASON", 1950))
 END_SEASON = int(os.getenv("END_SEASON", 2025))
@@ -15,7 +17,7 @@ MAX_RETRIES_PER_SEASON = 3
 
 def fetch_results_for_season(season):
     logger.debug(f"Fetching results for season {season}")
-    return db_utils.fetch_paginated(
+    return fetch_paginated(
         endpoint=f"/{season}/results.json",
         data_path=["MRData", "RaceTable", "Races"]
     )
@@ -69,7 +71,7 @@ def create_table(cur):
 def main():
     logger.info("Starting historical results ingestion")
 
-    conn = db_utils.connect_db()
+    conn = connect_db()
     cur = conn.cursor()
 
     try:
@@ -99,7 +101,7 @@ def main():
                     time.sleep(2)  # gentle pacing
                     break  # ✅ move to next season
 
-                except db_utils.RateLimitExceeded as e:
+                except RateLimitExceeded as e:
                     retries += 1
                     logger.warning(str(e))
 
