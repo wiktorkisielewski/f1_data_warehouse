@@ -36,7 +36,8 @@ services:
     command: python -m ingestion.ingest_all
     restart: "no"
   dbt:
-    image: ghcr.io/dbt-labs/dbt-postgres:1.8.0
+    image: ghcr.io/dbt-labs/dbt-postgres:1.9.latest
+    platform: linux/amd64
     container_name: f1_dbt
     depends_on:
       postgres:
