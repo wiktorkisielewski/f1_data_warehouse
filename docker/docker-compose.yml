@@ -44,10 +44,11 @@ services:
         condition: service_healthy
     volumes:
       - ../f1_dbt:/usr/app
+      - ../f1_dbt/profiles:/root/.dbt
     working_dir: /usr/app
     env_file:
       - .env
-    command: dbt debug
+    command: ["debug"]
 
 volumes:
   postgres_data:
