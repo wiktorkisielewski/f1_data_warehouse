@@ -7,8 +7,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "${POSTGRES_PORT}:5432"
     volumes:
       # IMPORTANT: mount one level higher for Postgres 18+
       - postgres_data:/var/lib/postgresql
@@ -26,8 +24,6 @@ services:
       dockerfile: ingestion/Dockerfile
     depends_on:
       - postgres
-    env_file:
-      - .env
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -42,12 +38,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - ../.env
     volumes:
       - ../f1_dbt:/usr/app
       - ../f1_dbt/profiles:/root/.dbt
     working_dir: /usr/app
-    env_file:
-      - ../.env
     command: ["debug"]
 
 volumes:
