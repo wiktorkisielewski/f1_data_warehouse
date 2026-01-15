@@ -1,7 +1,7 @@
 notes/
 target/
 dbt_packages/
-logs/
+logs/*
 .user.yml
 
 # Byte-compiled / optimized / DLL files
