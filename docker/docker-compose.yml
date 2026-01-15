@@ -35,6 +35,18 @@ services:
       - ../ingestion/logs:/app/ingestion/logs
     command: python -m ingestion.ingest_all
     restart: "no"
+  dbt:
+    image: ghcr.io/dbt-labs/dbt-postgres:1.8.0
+    container_name: f1_dbt
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../f1_dbt:/usr/app
+    working_dir: /usr/app
+    env_file:
+      - .env
+    command: dbt debug
 
 volumes:
   postgres_data:
