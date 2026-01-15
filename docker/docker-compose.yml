@@ -50,3 +50,7 @@ services:
 
 volumes:
   postgres_data:
+
+networks:
+  f1_network:
+    driver: bridge
