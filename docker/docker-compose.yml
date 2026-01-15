@@ -47,7 +47,7 @@ services:
       - ../f1_dbt/profiles:/root/.dbt
     working_dir: /usr/app
     env_file:
-      - .env
+      - ../.env
     command: ["debug"]
 
 volumes:
