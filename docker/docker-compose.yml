@@ -31,6 +31,7 @@ services:
       - ../ingestion/logs:/app/ingestion/logs
     command: python -m ingestion.ingest_all
     restart: "no"
+    
   dbt:
     image: ghcr.io/dbt-labs/dbt-postgres:1.9.latest
     platform: linux/amd64
@@ -44,7 +45,14 @@ services:
       - ../f1_dbt:/usr/app
       - ../f1_dbt/profiles:/root/.dbt
     working_dir: /usr/app
-    command: ["debug"]
+    entrypoint: []
+    command: >
+      sh -c "
+      dbt debug &&
+      dbt run --select staging &&
+      dbt run --select marts &&
+      dbt test
+      "
 
 volumes:
   postgres_data:
