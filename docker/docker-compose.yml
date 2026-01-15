@@ -12,6 +12,12 @@ services:
     volumes:
       # IMPORTANT: mount one level higher for Postgres 18+
       - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      
 
   ingestion:
     container_name: f1_ingestion
