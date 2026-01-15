@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:18
@@ -14,6 +12,23 @@ services:
     volumes:
       # IMPORTANT: mount one level higher for Postgres 18+
       - postgres_data:/var/lib/postgresql
+
+  ingestion:
+    container_name: f1_ingestion
+    build:
+      context: ..
+      dockerfile: ingestion/Dockerfile
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+    volumes:
+      - ../ingestion/logs:/app/ingestion/logs
+    command: python -m ingestion.ingest_all
+    restart: "no"
 
 volumes:
   postgres_data:
