@@ -8,14 +8,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      # IMPORTANT: mount one level higher for Postgres 18+
       - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 5
-      
 
   ingestion:
     container_name: f1_ingestion
@@ -23,15 +21,17 @@ services:
       context: ..
       dockerfile: ingestion/Dockerfile
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
     volumes:
       - ../ingestion/logs:/app/ingestion/logs
+      - ingestion_state:/tmp
     command: python -m ingestion.ingest_all
     restart: "no"
-    
+
   dbt:
     image: ghcr.io/dbt-labs/dbt-postgres:1.9.latest
     platform: linux/amd64
@@ -44,19 +44,21 @@ services:
     volumes:
       - ../f1_dbt:/usr/app
       - ../f1_dbt/profiles:/root/.dbt
+      - ingestion_state:/tmp
     working_dir: /usr/app
     entrypoint: []
     command: >
       sh -c "
+      echo 'Waiting for ingestion to complete...' &&
+      while [ ! -f /tmp/INGESTION_DONE ]; do sleep 2; done &&
+      echo 'Ingestion finished. Running dbt...' &&
       dbt debug &&
       dbt run --select staging &&
       dbt run --select marts &&
       dbt test
       "
+    restart: "no"
 
 volumes:
   postgres_data:
-
-networks:
-  f1_network:
-    driver: bridge
+  ingestion_state:
