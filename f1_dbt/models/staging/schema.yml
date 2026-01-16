@@ -2,9 +2,10 @@ version: 2
 
 models:
   - name: stg_drivers
-    description: "Cleaned driver reference data"
+    description: "Cleaned and standardized driver reference data"
     columns:
       - name: driver_id
+        description: "Primary key for drivers"
         tests:
           - not_null
           - unique
@@ -13,6 +14,7 @@ models:
     description: "Cleaned constructor reference data"
     columns:
       - name: constructor_id
+        description: "Primary key for constructors"
         tests:
           - not_null
           - unique
@@ -21,22 +23,27 @@ models:
     description: "Race calendar and circuit metadata"
     columns:
       - name: race_id
+        description: "Primary key for races"
         tests:
           - not_null
           - unique
+
       - name: season
+        description: "F1 season year"
         tests:
           - not_null
 
   - name: stg_results
-    description: "Race results at driver-race grain"
+    description: "Raw race results at driver–race grain"
     columns:
       - name: race_id
         tests:
           - not_null
+
       - name: driver_id
         tests:
           - not_null
+
       - name: constructor_id
         tests:
           - not_null
