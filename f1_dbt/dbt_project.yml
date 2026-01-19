@@ -18,7 +18,9 @@ models:
     # Staging models are lightweight views over raw tables
     staging:
       +materialized: view
+      +schema: staging
 
     # Mart models are analytics-ready tables (dimensions & facts)
     marts:
       +materialized: table
+      +schema: analytics
