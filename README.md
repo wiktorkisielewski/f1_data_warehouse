@@ -157,7 +157,7 @@ docker compose down -v
   cd f1_data_warehouse/
   ```
 
-  Create a local .env file from the example provided and populate the values
+  Create a local .env file from the example provided. No edits required for local runs.
 
   ```bash
   cp .env.example .env
