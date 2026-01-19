@@ -38,13 +38,23 @@ The pipeline is designed to be **idempotent, resumable, and analytics-ready**, c
 
 ### Storage
 - PostgreSQL running locally in Docker
-- Separate raw and analytics layers
+- Schema-based separation:
+  - `public` → raw ingested tables
+  - `staging` → dbt staging views
+  - `analytics` → analytics-ready marts
 
 ### Transformation
 - dbt used to implement a layered transformation approach:
   - **Raw → Staging → Marts**
 - Data quality enforced via dbt tests
 - Star schema modeled for analytics consumption
+
+### Orchestration
+- Docker Compose orchestrates the full pipeline:
+  - PostgreSQL initializes the warehouse
+  - Ingestion container loads raw data
+  - dbt container builds staging and analytics models
+- dbt execution is automatically triggered after ingestion completes
 
 ---
 
@@ -98,22 +108,45 @@ Example SQL analytics queries are available in `f1_dbt/analyses/`, including:
 
 ---
 
-## Prerequisites
+## How to Run Locally
+
+### Prerequisites
 
 Before running the project locally, ensure you have the following installed:
 
 - **Git**
 - **Docker & Docker Compose**
   - https://docs.docker.com/get-docker/
-- **Python 3.13+**
-  - Recommended to use `pyenv` or system Python
-- **pip**
-- **dbt-postgres**
-  ```bash
-  pip install dbt-postgres
-  ```
----
-## How to Run Locally
+
+
+### ⏱️ Execution Time
+
+Execution time depends primarily on API rate limits during ingestion.
+
+Typical runtimes:
+- **Full historical ingestion**: ~25–30 minutes  
+  (~28,000 race result records)
+- **dbt transformations & tests**: < 1 minute
+
+The pipeline is idempotent and safe to re-run. Subsequent runs may complete faster if data already exists.
+
+### 💾 Local Resource Usage (Approximate)
+
+Docker resources used by the pipeline:
+
+- **PostgreSQL data volume**: ~70 MB
+- **Docker images**:
+  - postgres: ~700 MB
+  - dbt-postgres: ~900 MB
+  - ingestion service: ~850 MB
+- **Runtime memory usage**:
+  - ~50–100 MB per container during execution
+
+These resources are typical for a local analytics stack and can be fully cleaned up using:
+
+```bash
+docker compose down -v
+```
 
 ### 1️⃣ Local Environment Setup
 
@@ -129,109 +162,68 @@ Before running the project locally, ensure you have the following installed:
   ```bash
   cp .env.example .env
   ```
-  
-  Install Python dependencies
 
-  ```bash
-  pip install -r requirements.txt
-  ```
-
-
-### 2️⃣ Start PostgreSQL with Docker
-  The project includes a preconfigured docker-compose.yml. No additional Docker setup is required 
+### 2️⃣ Run the Entire Pipeline
+  The entire data pipeline is orchestrated through Docker Compose and can be executed with a **single command**.
 
   ```bash
   cd docker/
-  docker compose up -d
+  docker compose --env-file ../.env up --build
   ```
 
-  Verify the contaner is running
+  This command is the **core entry point** of the project. It provisions infrastructure, ingests data, and builds analytics models end-to-end with no manual intervention.
 
-  ```bash
-  docker ps 
-  ```
+Under the hood, it performs the following steps:
 
-### 3️⃣ Run ingestion script for raw tables to populate Postgres
+1. **Provision the warehouse**
+   - Starts a PostgreSQL container
+   - Initializes schemas and persistent storage
 
-  This ingests historical Formula 1 data into PostgreSQL
-  Execution time for ingest_results.py depends on API rate limits and includes automatic cooldowns and retries
-  Due to API rate limits the ingestion process may take up to 30min
+2. **Ingest raw Formula 1 data**
+   - Executes Python ingestion pipelines
+   - Pulls historical data from the Ergast API
+   - Handles pagination, retries, and API rate limits
+   - Loads data into raw tables in the `public` schema
 
-  ```bash
-  cd .. # f1_data_warehouse/ 
-  python -m ingestion.ingest_all # to run all ~27min, 28134 rows
-  ```
+3. **Transform & validate data with dbt**
+   - Builds staging models as views (`dbt_staging`)
+   - Builds analytics-ready marts as tables (`dbt_analytics`)
+   - Executes data quality tests:
+     - `not null`
+     - `unique`
+     - `relationships`
 
-  Optionally to run separate ingestion files
+Once this step completes successfully, the warehouse is **fully analytics-ready**.
 
-  ```bash
-  python ingestion/ingest_drivers.py # ~ 6sec, 874 rows
-  python ingestion/ingest_constructors.py # ~ 2sec, 214 rows
-  python ingestion/ingest_races.py # ~ 9sec, 1173 rows
-  python ingestion/ingest_results.py # ~ 25min, 25873 rows
-  ```
 
-### 4️⃣ Setup dbt connection
-
-  ```bash
-  cd f1_dbt
-  dbt init
-  ```
-
-  Use the following values when prompted
-
-  database: postgres or choose number 1 \
-  host:  same as in .env \
-  port: same as in .env \
-  user: same as in .env \
-  password: same as in .env \
-  dbname: same as in .env \
-  schema: public \
-  threads: 4 
-
-  Test out the connection
-
-  ```bash
-  dbt debug
-  ```
-
-### 5️⃣ Run dbt models & tests
-
-  Run a single model:
-
-  ```bash
-  dbt run --select stg_drivers
-  ```
-
-  Run all staging models:
-
-  ```bash
-  dbt run --select staging
-  ```
-
-  Run all dimension models:
-  
-  ```bash
-  dbt run --select marts
-  ```
-
-### 6️⃣ Run dbt tests
-
-  ```bash
-  dbt test
-  ```
-
-### 7️⃣ Analytics & Validation
+### 3️⃣ Validation & Analytics
 
   ```bash
   cd docker/
   docker exec -it f1_postgres psql -U f1_user -d f1_raw
   ```
-
-  Useful commands
+  
+  List schemas:
 
   ```bash
-  \d                  # List of relations
+  \dn                
+  ```
+  You should see the following schemas:
+
+  - **public** → raw tables  
+  - **dbt_staging** → staging views  
+  - **dbt_analytics** → dimension & fact tables
+
+  ```bash
+  \dt public.*          # List of raw tables
+  \dv dbt_staging.*     # List of staging views
+  \dt dbt_analytics.*   # List of dimension & fact tables
+  ```
+
+
+  Other useful commands
+
+  ```bash
   \dt                 # List tables
   \dv                 # List views
   \d table_name       # Describe table
@@ -241,7 +233,7 @@ Before running the project locally, ensure you have the following installed:
   For example analytics queries using fact and dimension models check ./f1_dbt/analyses/f1_analytics.sql
 
 
-### 8️⃣ Tear Down Local Environment
+### 4️⃣ Tear Down Local Environment
 
   Stop Docker services (keep data)
 
@@ -254,3 +246,12 @@ Before running the project locally, ensure you have the following installed:
   ```bash
   docker compose down -v
   ```
+
+
+## Pipeline Summary
+
+This project demonstrates a production-style ELT pipeline where:
+- Infrastructure is fully containerized
+- Ingestion and transformation are decoupled
+- dbt enforces data quality and modeling standards
+- The warehouse is immediately analytics-ready after a single command
