@@ -59,6 +59,32 @@ services:
       "
     restart: "no"
 
+  metabase_restore:
+    image: postgres:18
+    container_name: f1_metabase_restore
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./metabase_seed.sql:/metabase_seed.sql
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint: >
+      sh -c "
+      echo 'Checking if Metabase DB is empty...' &&
+      COUNT=$(psql -h postgres -U $POSTGRES_USER -d metabase -t -c \"SELECT COUNT(*) FROM pg_tables WHERE schemaname='public';\" | xargs) &&
+      if [ \"$COUNT\" = \"0\" ]; then
+        echo 'Restoring Metabase dashboards...' &&
+        psql -h postgres -U $POSTGRES_USER -d metabase < /metabase_seed.sql &&
+        echo 'Restore complete.';
+      else
+        echo 'Metabase DB already initialized. Skipping restore.';
+      fi
+      "
+    restart: "no"
+
   metabase:
     image: metabase/metabase:latest
     container_name: f1_metabase
@@ -68,6 +94,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      metabase_restore:
+        condition: service_completed_successfully
     environment:
       MB_DB_TYPE: postgres
       MB_DB_DBNAME: metabase
