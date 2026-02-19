@@ -171,21 +171,22 @@ docker compose down -v
   docker compose --env-file ../.env up --build
   ```
 
-  This command is the **core entry point** of the project. It provisions infrastructure, ingests data, and builds analytics models end-to-end with no manual intervention.
+  This command is the **core entry point** of the project. It provisions infrastructure, ingests data, and builds analytics models, starts the BI layer, and restores dashboards - fully automated and end-to-end.
 
 Under the hood, it performs the following steps:
 
-1. **Provision the warehouse**
+1. **Provision the Warehouse**
    - Starts a PostgreSQL container
    - Initializes schemas and persistent storage
+   - Creates the Metabase application database
 
-2. **Ingest raw Formula 1 data**
+2. **Ingest Raw Formula 1 Data**
    - Executes Python ingestion pipelines
    - Pulls historical data from the Ergast API
    - Handles pagination, retries, and API rate limits
    - Loads data into raw tables in the `public` schema
 
-3. **Transform & validate data with dbt**
+3. **Transform & Validate Data with dbt**
    - Builds staging models as views (`dbt_staging`)
    - Builds analytics-ready marts as tables (`dbt_analytics`)
    - Executes data quality tests:
@@ -193,10 +194,42 @@ Under the hood, it performs the following steps:
      - `unique`
      - `relationships`
 
-Once this step completes successfully, the warehouse is **fully analytics-ready**.
+4. **Start Metabase (BI Layer)**
+   - Launches Metabase as a containerized service
+   - Connects it automatically to the warehouse
+   - Configues the application database
 
+5. **Automatically Restore Pre-Built Dashboards**
+   - Restores a pre-configured Metabase environment from a version-controlled database seed 
+   - Restores:
+     - F1 Season Perdormance
+     - F1 Long-Term Insights
+   - Applies all saved filters, formatting and visual styling (no manual dashboard setup required)
+    
 
-### 3️⃣ Validation & Analytics
+Once this step completes successfully, the warehouse and BI layer are **fully analytics-ready**.
+
+### 3️⃣ Access the Dashboards
+
+Once the pipeline completes, open in a web browser:
+
+```bash
+http://localhost:3000
+```
+Login with:
+
+```bash
+Email:f1@metabase.com
+Password: Alonso1
+```
+Navigate to:
+
+```bash
+COLLECTIONS > Your Personal Collection > F1 Long-Term Collection > F1 Long-Term Insights (dashbord)
+```
+All filters, formatting, and visual styling are pre-configured
+
+### 4️⃣ Validate the Warehouse (Optional)
 
   ```bash
   cd docker/
@@ -233,7 +266,7 @@ Once this step completes successfully, the warehouse is **fully analytics-ready*
   For example analytics queries using fact and dimension models check ./f1_dbt/analyses/f1_analytics.sql
 
 
-### 4️⃣ Tear Down Local Environment
+### 5️⃣ Tear Down Local Environment
 
   Stop Docker services (keep data)
 
@@ -250,8 +283,19 @@ Once this step completes successfully, the warehouse is **fully analytics-ready*
 
 ## Pipeline Summary
 
-This project demonstrates a production-style ELT pipeline where:
-- Infrastructure is fully containerized
+This project demonstrates a production-style ELT + BI architecture where:
+- Infrastructure is fully containerized (PostgreSQL, ingestion, dbt, Metabase)
 - Ingestion and transformation are decoupled
-- dbt enforces data quality and modeling standards
-- The warehouse is immediately analytics-ready after a single command
+- dbt enforces modeling standards and data quality
+- Analytics marts are built using dimensional modeling principles
+- The BI layer is automatically provisioned and restored
+
+The Metabase container automatically restores a pre-configured BI environment from a version-controlled SQL seed file (metabase_seed.sql), ensuring identical dashboards across environments.
+
+Running a single command:
+
+```bash
+docker compose --env-file ../.env up --build
+```
+
+provisions infrastructure, ingests historical F1 data, builds analytics models, and launches fully configured dashboards — end-to-end and reproducibly.
