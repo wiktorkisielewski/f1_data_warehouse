@@ -66,6 +66,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      dbt:
+        condition: service_completed_successfully
     volumes:
       - ./metabase_seed.sql:/metabase_seed.sql
     environment:
@@ -74,15 +76,11 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
     entrypoint: >
       sh -c "
-      echo 'Checking if Metabase DB is empty...' &&
-      COUNT=$(psql -h postgres -U $POSTGRES_USER -d metabase -t -c \"SELECT COUNT(*) FROM pg_tables WHERE schemaname='public';\" | xargs) &&
-      if [ \"$COUNT\" = \"0\" ]; then
-        echo 'Restoring Metabase dashboards...' &&
-        psql -h postgres -U $POSTGRES_USER -d metabase < /metabase_seed.sql &&
-        echo 'Restore complete.';
-      else
-        echo 'Metabase DB already initialized. Skipping restore.';
-      fi
+      echo 'Waiting for Postgres...' &&
+      sleep 5 &&
+      echo 'Restoring Metabase seed...' &&
+      psql -h postgres -U ${POSTGRES_USER} -d metabase -f /metabase_seed.sql &&
+      echo 'Metabase restore complete.'
       "
     restart: "no"
 
