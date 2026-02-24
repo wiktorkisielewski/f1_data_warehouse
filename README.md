@@ -132,17 +132,38 @@ The pipeline is idempotent and safe to re-run. Subsequent runs may complete fast
 
 ### 💾 Local Resource Usage (Approximate)
 
-Docker resources used by the pipeline:
+Docker resources used by the pipeline (measured on a clean run):
 
-- **PostgreSQL data volume**: ~70 MB
-- **Docker images**:
-  - postgres: ~700 MB
-  - dbt-postgres: ~900 MB
-  - ingestion service: ~850 MB
-- **Runtime memory usage**:
-  - ~50–100 MB per container during execution
+#### Docker Images
 
-These resources are typical for a local analytics stack and can be fully cleaned up using:
+- **metabase/metabase:latest** → 1.56 GB  
+- **docker-ingestion** → 881 MB  
+- **dbt-postgres (1.9.latest)** → 883 MB  
+- **postgres:18** → 671 MB  
+
+> Total image footprint: ~4.0 GB
+
+#### Persistent Data (Docker Volumes)
+
+- **PostgreSQL warehouse data** → ~103 MB  
+- **Metabase application data** → grows over time (initial seed: ~0 MB)  
+- **Ingestion state volume** → negligible  
+
+> Total persistent warehouse footprint after full ingestion: ~100 MB
+
+#### Runtime Memory Usage (Idle State)
+
+- **Metabase** → ~1.0 GB RAM  
+- **PostgreSQL** → ~80 MB RAM  
+- Other services run briefly during ingestion & transformation.
+
+#### Docker Build Cache
+
+- ~950 MB (can be safely pruned if needed)
+
+---
+
+*These resources are typical for a fully containerized local analytics stack and can be completely removed using:*
 
 ```bash
 docker compose down -v
@@ -202,7 +223,7 @@ Under the hood, it performs the following steps:
 5. **Automatically Restore Pre-Built Dashboards**
    - Restores a pre-configured Metabase environment from a version-controlled database seed 
    - Restores:
-     - F1 Season Perdormance
+     - F1 Season Performance
      - F1 Long-Term Insights
    - Applies all saved filters, formatting and visual styling (no manual dashboard setup required)
     
@@ -216,18 +237,27 @@ Once the pipeline completes, open in a web browser:
 ```bash
 http://localhost:3000
 ```
-Login with:
+The Metabase instance is automatically provisioned and restored from a version-controlled seed file, ensuring identical dashboards across environments without any manual configuration.
 
-```bash
-Email:f1@metabase.com
-Password: Alonso1
-```
 Navigate to:
 
 ```bash
-COLLECTIONS > Your Personal Collection > F1 Long-Term Collection > F1 Long-Term Insights (dashbord)
+Our Analytics → F1 Dashboards
 ```
-All filters, formatting, and visual styling are pre-configured
+You will find:
+
+- **F1 Long-Term Insights**
+- **F1 Season Performance**
+
+All dashboards are fully configured, including:
+
+- Saved questions  
+- Filters  
+- Formatting  
+- Visual styling  
+- Data model mappings  
+
+No manual setup is required.
 
 ### 4️⃣ Validate the Warehouse (Optional)
 
