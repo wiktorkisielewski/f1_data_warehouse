@@ -1,3 +1,6 @@
+# Local Docker backups
+docker/backups/
+
 notes/
 target/
 dbt_packages/
