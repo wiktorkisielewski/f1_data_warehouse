@@ -107,7 +107,20 @@ Example SQL analytics queries are available in `f1_dbt/analyses/`, including:
 - Race distribution by country
 
 ---
+## Architecture Overview
 
+This project demonstrates a production-style, containerized ELT architecture with an automated BI layer, reproducible across environments via Docker Compose.
+
+The stack includes:
+
+- **PostgreSQL** → Data warehouse  
+- **Python ingestion service** → Historical Formula 1 data ingestion  
+- **dbt** → Data transformation and validation  
+- **Metabase** → Business intelligence and dashboards  
+
+All services are executed and coordinated through a single Docker Compose workflow, enabling fully automated and reproducible infrastructure provisioning, data ingestion, transformation, and dashboard restoration.
+
+---
 ## How to Run Locally
 
 ### Prerequisites
