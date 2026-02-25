@@ -2,10 +2,18 @@ version: 2
 
 sources:
   - name: f1_raw
-    description: "Raw Formula 1 data ingested from Ergast API"
+    description: "Raw Formula 1 data ingested from the Ergast API"
     schema: public
+
     tables:
       - name: drivers_raw
+        description: "Raw drivers data"
+
       - name: constructors_raw
+        description: "Raw constructors data"
+
       - name: races_raw
+        description: "Raw race calendar data"
+
       - name: results_raw
+        description: "Raw race results data"

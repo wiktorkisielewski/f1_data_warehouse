@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:18
@@ -9,11 +7,105 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "${POSTGRES_PORT}:5432"
     volumes:
-      # IMPORTANT: mount one level higher for Postgres 18+
       - postgres_data:/var/lib/postgresql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ingestion:
+    container_name: f1_ingestion
+    build:
+      context: ..
+      dockerfile: ingestion/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+    volumes:
+      - ../ingestion/logs:/app/ingestion/logs
+      - ingestion_state:/tmp
+    command: python -m ingestion.ingest_all
+    restart: "no"
+
+  dbt:
+    image: ghcr.io/dbt-labs/dbt-postgres:1.9.latest
+    platform: linux/amd64
+    container_name: f1_dbt
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    volumes:
+      - ../f1_dbt:/usr/app
+      - ../f1_dbt/profiles:/root/.dbt
+      - ingestion_state:/tmp
+    working_dir: /usr/app
+    entrypoint: []
+    command: >
+      sh -c "
+      echo 'Waiting for ingestion to complete...' &&
+      while [ ! -f /tmp/INGESTION_DONE ]; do sleep 2; done &&
+      echo 'Ingestion finished. Running dbt...' &&
+      dbt debug &&
+      dbt run --select staging &&
+      dbt run --select marts &&
+      dbt test
+      "
+    restart: "no"
+
+  metabase_restore:
+    image: postgres:18
+    container_name: f1_metabase_restore
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dbt:
+        condition: service_completed_successfully
+    volumes:
+      - ./metabase_seed.sql:/metabase_seed.sql
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint: >
+      sh -c "
+      echo 'Waiting for Postgres...' &&
+      sleep 5 &&
+      echo 'Restoring Metabase seed...' &&
+      psql -h postgres -U ${POSTGRES_USER} -d metabase -f /metabase_seed.sql &&
+      echo 'Metabase restore complete.'
+      "
+    restart: "no"
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: f1_metabase
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      metabase_restore:
+        condition: service_completed_successfully
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabase
+      MB_DB_PORT: 5432
+      MB_DB_USER: ${POSTGRES_USER}
+      MB_DB_PASS: ${POSTGRES_PASSWORD}
+      MB_DB_HOST: postgres
+    volumes:
+      - metabase_data:/metabase-data
 
 volumes:
   postgres_data:
+  ingestion_state:
+  metabase_data:

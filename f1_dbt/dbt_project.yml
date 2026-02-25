@@ -15,10 +15,20 @@ clean-targets:
 
 models:
   f1_dbt:
-    # Staging models are lightweight views over raw tables
+
+    # Experimental models (not built by default)
+    experiments:
+      +enabled: false
+      +tags: ["experimental"]
+
+    # Staging layer (raw → cleaned)
     staging:
       +materialized: view
+      +schema: staging
+      +tags: ["staging"]
 
-    # Mart models are analytics-ready tables (dimensions & facts)
+    # Mart layer (business-ready models)
     marts:
       +materialized: table
+      +schema: analytics
+      +tags: ["mart", "analytics"]

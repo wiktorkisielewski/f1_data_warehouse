@@ -2,28 +2,29 @@ version: 2
 
 models:
   - name: fact_results
-    description: "Race results fact table"
+    description: "Race results fact table at driver–race grain"
+
     columns:
       - name: race_id
+        description: "Unique identifier for the race"
         tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('dim_races')
-                field: race_id
+              to: ref('dim_races')
+              field: race_id
 
       - name: driver_id
+        description: "Unique identifier for the driver"
         tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('dim_drivers')
-                field: driver_id
+              to: ref('dim_drivers')
+              field: driver_id
 
       - name: constructor_id
+        description: "Unique identifier for the constructor"
         tests:
           - not_null
           - relationships:
-              arguments:
-                to: ref('dim_constructors')
-                field: constructor_id
+              to: ref('dim_constructors')
+              field: constructor_id
