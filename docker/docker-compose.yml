@@ -104,6 +104,28 @@ services:
       MB_DB_HOST: postgres
     volumes:
       - metabase_data:/metabase-data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ready:
+    image: curlimages/curl:latest
+    container_name: f1_ready_banner
+    depends_on:
+      metabase:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+      echo '';
+      echo '========================================';
+      echo '🚀 F1 DATA WAREHOUSE IS READY 🚀';
+      echo 'Open: http://localhost:3000';
+      echo '========================================';
+      echo '';
+      "
+    restart: "no"
 
 volumes:
   postgres_data:
