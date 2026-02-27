@@ -4,6 +4,7 @@ from ingestion.db import connect_db
 from ingestion.api import fetch_paginated, RateLimitExceeded
 from ingestion.logger import setup_logger
 from dotenv import load_dotenv
+from ingestion.progress_display import render_progress, render_cooldown, reset_progress_display
 
 load_dotenv("docker/.env")
 
@@ -79,27 +80,25 @@ def main():
 
         total_inserted = 0
 
-        for season in range(START_SEASON, END_SEASON + 1):
+        # Prepare season list for progress tracking
+        seasons = list(range(START_SEASON, END_SEASON + 1))
+        total_seasons = len(seasons)
+
+        for idx, season in enumerate(seasons, start=1):
             retries = 0
 
             while True:
-                logger.info(
-                    f"Ingesting season {season} "
-                    f"(attempt {retries + 1}/{MAX_RETRIES_PER_SEASON})"
-                )
-
                 try:
                     inserted = ingest_season(cur, season)
                     conn.commit()
+
                     total_inserted += inserted
 
-                    logger.info(
-                        f"Season {season} completed "
-                        f"({inserted} rows, total {total_inserted})"
-                    )
+                    # Render live progress
+                    render_progress(idx, total_seasons, total_inserted)
 
-                    time.sleep(2)  # gentle pacing
-                    break  # ✅ move to next season
+                    time.sleep(1)  # smooth pacing
+                    break
 
                 except RateLimitExceeded as e:
                     retries += 1
@@ -112,12 +111,9 @@ def main():
                         )
                         return
 
-                    logger.warning(
-                        "API rate limit reached. "
-                        f"Cooling down for 5 minutes before retrying season {season}"
-                    )
-                    time.sleep(300)
-                    logger.info(f"Retrying season {season} after cooldown")
+                    # Render live cooldown timer
+                    render_cooldown(300)
+                    reset_progress_display()
 
                 except Exception:
                     logger.exception(
